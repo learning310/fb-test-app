@@ -16,29 +16,29 @@
  * You should have received a copy of the GNU General Public License along with
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <fcntl.h>
+#include <linux/fb.h>
+#include <linux/types.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <sys/time.h>
-#include <time.h>
-#include <linux/types.h>
-#include <linux/fb.h>
-#include <sys/mman.h>
 #include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
 
 static int fd;
-static void *fb;
+static void* fb;
 static struct fb_var_screeninfo var;
 static struct fb_fix_screeninfo fix;
 static unsigned bytespp;
-FILE *logfile;
+FILE* logfile;
 
-int timeval_subtract(struct timeval *result, struct timeval *x,
-		struct timeval *y)
+int timeval_subtract(struct timeval* result, struct timeval* x,
+	struct timeval* y)
 {
 	/* Perform the carry for the later subtraction by updating y. */
 	if (x->tv_usec < y->tv_usec) {
@@ -80,9 +80,9 @@ static unsigned long long stop_timing()
 	return usecs;
 }
 
-typedef void (*test_func)(unsigned, unsigned long long *, unsigned long long *);
+typedef void (*test_func)(unsigned, unsigned long long*, unsigned long long*);
 
-static void run(const char *name, test_func func)
+static void run(const char* name, test_func func)
 {
 	unsigned long long usecs;
 	unsigned long long pixels;
@@ -108,16 +108,15 @@ static void run(const char *name, test_func func)
 	pix_per_sec = pixels * 1000 * 1000 / usecs;
 
 	printf("%llu pix, %llu us, %llu pix/s\n", pixels,
-			usecs, pix_per_sec);
+		usecs, pix_per_sec);
 	fprintf(logfile, "%s,%llu,%llu,%llu\n", name, pixels,
-			usecs, pix_per_sec);
+		usecs, pix_per_sec);
 }
-
 
 #define RUN(t) run(#t, t)
 
 static void sequential_horiz_singlepixel_read(unsigned loops,
-		unsigned long long *usecs, unsigned long long *pixels)
+	unsigned long long* usecs, unsigned long long* pixels)
 {
 	const unsigned xres = var.xres_virtual;
 	const unsigned yres = var.yres_virtual;
@@ -129,7 +128,7 @@ static void sequential_horiz_singlepixel_read(unsigned loops,
 	start_timing();
 
 	while (l--) {
-		__u32 *p32 = fb;
+		__u32* p32 = fb;
 		for (y = 0; y < var.yres_virtual; ++y) {
 			for (x = 0; x < var.xres_virtual; ++x)
 				sum += p32[x];
@@ -142,13 +141,13 @@ static void sequential_horiz_singlepixel_read(unsigned loops,
 
 	if (sum == 0xffffffff) {
 		printf("bad luck\n");
-		int *p = 0;
+		int* p = 0;
 		*p = 0;
 	}
 }
 
 static void sequential_horiz_singlepixel_write(unsigned loops,
-		unsigned long long *usecs, unsigned long long *pixels)
+	unsigned long long* usecs, unsigned long long* pixels)
 {
 	const unsigned xres = var.xres_virtual;
 	const unsigned yres = var.yres_virtual;
@@ -159,7 +158,7 @@ static void sequential_horiz_singlepixel_write(unsigned loops,
 	start_timing();
 
 	while (l--) {
-		__u32 *p32 = fb;
+		__u32* p32 = fb;
 		for (y = 0; y < var.yres_virtual; ++y) {
 			for (x = 0; x < var.xres_virtual; ++x)
 				p32[x] = x * y * (loops - l);
@@ -172,7 +171,7 @@ static void sequential_horiz_singlepixel_write(unsigned loops,
 }
 
 static void sequential_vert_singlepixel_read(unsigned loops,
-		unsigned long long *usecs, unsigned long long *pixels)
+	unsigned long long* usecs, unsigned long long* pixels)
 {
 	const unsigned xres = var.xres_virtual;
 	const unsigned yres = var.yres_virtual;
@@ -185,7 +184,7 @@ static void sequential_vert_singlepixel_read(unsigned loops,
 
 	while (l--) {
 		for (x = 0; x < var.xres_virtual; ++x) {
-			__u32 *p32 = ((__u32 *)fb) + x;
+			__u32* p32 = ((__u32*)fb) + x;
 			for (y = 0; y < var.yres_virtual; ++y) {
 				sum += *p32;
 				p32 += (fix.line_length / sizeof(*p32));
@@ -198,13 +197,13 @@ static void sequential_vert_singlepixel_read(unsigned loops,
 
 	if (sum == 0xffffffff) {
 		printf("bad luck\n");
-		int *p = 0;
+		int* p = 0;
 		*p = 0;
 	}
 }
 
 static void sequential_vert_singlepixel_write(unsigned loops,
-		unsigned long long *usecs, unsigned long long *pixels)
+	unsigned long long* usecs, unsigned long long* pixels)
 {
 	const unsigned xres = var.xres_virtual;
 	const unsigned yres = var.yres_virtual;
@@ -216,7 +215,7 @@ static void sequential_vert_singlepixel_write(unsigned loops,
 
 	while (l--) {
 		for (x = 0; x < var.xres_virtual; ++x) {
-			__u32 *p32 = ((__u32 *)fb) + x;
+			__u32* p32 = ((__u32*)fb) + x;
 			for (y = 0; y < var.yres_virtual; ++y) {
 				*p32 = x * y * (loops - l);
 				p32 += (fix.line_length / sizeof(*p32));
@@ -229,21 +228,21 @@ static void sequential_vert_singlepixel_write(unsigned loops,
 }
 
 static void sequential_line_read(unsigned loops,
-		unsigned long long *usecs, unsigned long long *pixels)
+	unsigned long long* usecs, unsigned long long* pixels)
 {
 	const unsigned xres = var.xres_virtual;
 	const unsigned yres = var.yres_virtual;
 
 	unsigned l = loops;
 	unsigned y;
-	void *linebuf;
+	void* linebuf;
 
 	linebuf = malloc(var.xres_virtual * bytespp);
 
 	start_timing();
 
 	while (l--) {
-		void *p = fb;
+		void* p = fb;
 		for (y = 0; y < var.yres_virtual; ++y) {
 			memcpy(linebuf, p, var.xres_virtual * bytespp);
 			p += fix.line_length;
@@ -257,14 +256,14 @@ static void sequential_line_read(unsigned loops,
 }
 
 static void sequential_line_write(unsigned loops,
-		unsigned long long *usecs, unsigned long long *pixels)
+	unsigned long long* usecs, unsigned long long* pixels)
 {
 	const unsigned xres = var.xres_virtual;
 	const unsigned yres = var.yres_virtual;
 
 	unsigned l = loops;
 	unsigned y;
-	void *linebuf;
+	void* linebuf;
 
 	linebuf = malloc(var.xres_virtual * bytespp);
 	for (y = 0; y < var.xres_virtual * bytespp; ++y)
@@ -273,7 +272,7 @@ static void sequential_line_write(unsigned loops,
 	start_timing();
 
 	while (l--) {
-		void *p = fb;
+		void* p = fb;
 		for (y = 0; y < var.yres_virtual; ++y) {
 			memcpy(p, linebuf, var.xres_virtual * bytespp);
 			p += fix.line_length;
@@ -287,7 +286,7 @@ static void sequential_line_write(unsigned loops,
 }
 
 static void nonsequential_singlepixel_write(unsigned loops,
-		unsigned long long *usecs, unsigned long long *pixels)
+	unsigned long long* usecs, unsigned long long* pixels)
 {
 	const unsigned xres = var.xres_virtual;
 	const unsigned yres = var.yres_virtual;
@@ -309,7 +308,7 @@ static void nonsequential_singlepixel_write(unsigned loops,
 			x = ((i / yres) % xparts) * (xres / xparts);
 			x += ((i / yres) / xparts) % (xres / xparts);
 
-			__u32 *p32 = fb + y * fix.line_length;
+			__u32* p32 = fb + y * fix.line_length;
 
 			p32[x] = x * y * (loops - l);
 		}
@@ -320,7 +319,7 @@ static void nonsequential_singlepixel_write(unsigned loops,
 }
 
 static void nonsequential_singlepixel_read(unsigned loops,
-		unsigned long long *usecs, unsigned long long *pixels)
+	unsigned long long* usecs, unsigned long long* pixels)
 {
 	const unsigned xres = var.xres_virtual;
 	const unsigned yres = var.yres_virtual;
@@ -343,7 +342,7 @@ static void nonsequential_singlepixel_read(unsigned loops,
 			x = ((i / yres) % xparts) * (xres / xparts);
 			x += ((i / yres) / xparts) % (xres / xparts);
 
-			__u32 *p32 = fb + y * fix.line_length;
+			__u32* p32 = fb + y * fix.line_length;
 
 			sum += p32[x];
 		}
@@ -354,12 +353,12 @@ static void nonsequential_singlepixel_read(unsigned loops,
 
 	if (sum == 0xffffffff) {
 		printf("bad luck\n");
-		int *p = 0;
+		int* p = 0;
 		*p = 0;
 	}
 }
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
 	int fb_num = 0;
 	char str[64];
@@ -385,8 +384,8 @@ int main(int argc, char **argv)
 	bytespp = var.bits_per_pixel / 8;
 
 	fb = mmap(NULL, fix.line_length * var.yres_virtual,
-			PROT_READ | PROT_WRITE, MAP_SHARED,
-			fd, 0);
+		PROT_READ | PROT_WRITE, MAP_SHARED,
+		fd, 0);
 	if (fb == MAP_FAILED)
 		return -1;
 
@@ -413,4 +412,3 @@ int main(int argc, char **argv)
 
 	return 0;
 }
-
