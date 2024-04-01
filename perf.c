@@ -37,47 +37,17 @@ static struct fb_fix_screeninfo fix;
 static unsigned bytespp;
 FILE* logfile;
 
-int timeval_subtract(struct timeval* result, struct timeval* x,
-	struct timeval* y)
-{
-	/* Perform the carry for the later subtraction by updating y. */
-	if (x->tv_usec < y->tv_usec) {
-		int nsec = (y->tv_usec - x->tv_usec) / 1000000 + 1;
-		y->tv_usec -= 1000000 * nsec;
-		y->tv_sec += nsec;
-	}
-	if (x->tv_usec - y->tv_usec > 1000000) {
-		int nsec = (x->tv_usec - y->tv_usec) / 1000000;
-		y->tv_usec += 1000000 * nsec;
-		y->tv_sec -= nsec;
-	}
-
-	/* Compute the time remaining to wait.
-	   tv_usec is certainly positive. */
-	result->tv_sec = x->tv_sec - y->tv_sec;
-	result->tv_usec = x->tv_usec - y->tv_usec;
-
-	/* Return 1 if result is negative. */
-	return x->tv_sec < y->tv_sec;
-}
-
-static struct timeval timeval;
+struct timespec time_start = { 0, 0 }, time_end = { 0, 0 };
 
 static void start_timing()
 {
-	gettimeofday(&timeval, NULL);
+	clock_gettime(CLOCK_MONOTONIC, &time_start);
 }
 
 static unsigned long long stop_timing()
 {
-	struct timeval tv2, res;
-	unsigned long long usecs;
-
-	gettimeofday(&tv2, NULL);
-	timeval_subtract(&res, &tv2, &timeval);
-	usecs = res.tv_usec + res.tv_sec * 1000 * 1000;
-
-	return usecs;
+	clock_gettime(CLOCK_MONOTONIC, &time_end);
+	return (time_end.tv_nsec - time_start.tv_nsec) + (time_end.tv_sec - time_start.tv_sec) * 1e9;
 }
 
 typedef void (*test_func)(unsigned, unsigned long long*, unsigned long long*);
@@ -91,8 +61,6 @@ static void run(const char* name, test_func func)
 	const unsigned runtime_secs = 5;
 	int loops;
 
-	printf("%s: ", name);
-
 	/* dunno if these work as I suppose, but I try to prevent any
 	 * disk activity during test */
 	fflush(stdout);
@@ -101,16 +69,16 @@ static void run(const char* name, test_func func)
 
 	/* calibrate */
 	func(calib_loops, &usecs, &pixels);
-	loops = runtime_secs * 1000 * 1000 * calib_loops / usecs;
+	loops = runtime_secs * 1e9 * calib_loops / usecs;
 
 	func(loops, &usecs, &pixels);
 
-	pix_per_sec = pixels * 1000 * 1000 / usecs;
+	pix_per_sec = pixels * 1e9 / usecs;
 
-	printf("%llu pix, %llu us, %llu pix/s\n", pixels,
-		usecs, pix_per_sec);
-	fprintf(logfile, "%s,%llu,%llu,%llu\n", name, pixels,
-		usecs, pix_per_sec);
+	printf("%18llu pix, %18llu ns, %18llu pix/s, %s\n", pixels,
+		usecs, pix_per_sec, name);
+	fprintf(logfile, "%18llu pix, %18llu ns, %18llu pix/s, %s\n", pixels,
+		usecs, pix_per_sec, name);
 }
 
 #define RUN(t) run(#t, t)
@@ -389,11 +357,13 @@ int main(int argc, char** argv)
 	if (fb == MAP_FAILED)
 		return -1;
 
-	logfile = fopen(argv[2], "w");
+	logfile = fopen(argv[2], "a");
 	if (logfile == NULL) {
 		printf("Failed to open logfile\n");
 		return -1;
 	}
+
+	fprintf(logfile, "Launch performance test\n");
 
 	RUN(sequential_horiz_singlepixel_read);
 	RUN(sequential_horiz_singlepixel_write);
@@ -406,6 +376,8 @@ int main(int argc, char** argv)
 
 	RUN(nonsequential_singlepixel_write);
 	RUN(nonsequential_singlepixel_read);
+
+	fprintf(logfile, "Finish performance test\n");
 
 	close(fd);
 	fclose(logfile);
